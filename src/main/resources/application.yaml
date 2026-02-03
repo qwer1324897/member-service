@@ -24,11 +24,12 @@ logging:
     org.springframework.security: trace
     com.ch.memberservice.member.security: debug
     com.ch.memberservice.member.controller: debug
+    com.ch.memberservice.member.jwt: debug
 
 app:
   frontend-url: "http://localhost:5173"
 
   jwt:
-    secret: "qwer"
+    secret: "eebM8sODDcZAdWLhrSLoHk7M5rkpQtzZDpT21t5ra+4="
     access-exp-seconds: 900 # jwt access token 시간을 15분으로 설정
     refresh-exp-seconds: 1209600 # refresh token 은 14일

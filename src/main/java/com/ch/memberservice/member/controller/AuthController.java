@@ -1,8 +1,9 @@
 package com.ch.memberservice.member.controller;
 
+import com.ch.memberservice.member.dto.LoginResponse;
 import com.ch.memberservice.member.dto.MemberRequest;
-import com.ch.memberservice.member.dto.MemberResponse;
 import com.ch.memberservice.member.entity.MemberuserDetails;
+import com.ch.memberservice.member.jwt.JwtTokenProvider;
 import com.ch.memberservice.member.service.MemberService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,10 +12,9 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -24,6 +24,7 @@ public class AuthController {
 
     private final MemberService memberService;
     private final AuthenticationManager authenticationManager;
+    private final JwtTokenProvider jwtTokenProvider;
 
     // 회원 임시 등록 (db에 비밀번호를 암호화하여 넣기)
     @PostMapping("/temp")
@@ -53,7 +54,27 @@ public class AuthController {
         Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(memberRequest.getHomepageId(), memberRequest.getPassword()));
         MemberuserDetails memberuserDetails = (MemberuserDetails)authentication.getPrincipal();
 
-        return ResponseEntity.ok(new MemberResponse(memberuserDetails.getUsername(), null));
+        if(authentication==null) {
+            log.debug("인증 실패 ㅜㅜ");
+        }
+        log.debug("인증 성공!!");
+
+        // Access Token 발급
+        String accessToken = jwtTokenProvider.createAccessToken(authentication);
+
+        return ResponseEntity.ok(new LoginResponse(accessToken));
+    }
+
+    /*ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+     로그인해야 서비스 받을 수 있는 보호된 API
+    ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ*/
+    @GetMapping("/me")
+    public Map<String, Object> getMyInfo(Authentication authentication) {
+
+        // Authentication 에 들어있는 Principal 을 꺼내와서 사용정보로 제공
+        MemberuserDetails memberuserDetails = (MemberuserDetails) authentication.getPrincipal();
+
+        return Map.of("name", memberuserDetails.getUsername());
     }
 
     @ExceptionHandler(AuthenticationException.class)    // 원래는 따로 만들어야되는데 지금은 일단 컨트롤러에다가;;
@@ -61,5 +82,4 @@ public class AuthController {
         log.debug("\n\n인증 실패 ㅜㅜ");
         return e.getMessage();
     }
-
 }
