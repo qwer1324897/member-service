@@ -15,6 +15,11 @@ spring:
       hibernate:
         format_sql: true
 
+  data:
+    redis:
+      host: localhost
+      port: 5555
+
 logging:
   level:
     root: info
@@ -33,3 +38,6 @@ app:
     secret: "eebM8sODDcZAdWLhrSLoHk7M5rkpQtzZDpT21t5ra+4="
     access-exp-seconds: 900 # jwt access token 시간을 15분으로 설정
     refresh-exp-seconds: 1209600 # refresh token 은 14일
+    refresh-cookie-path: "/api/auth"
+    refresh-cookie-secure: false
+    refresh-cookie-sameSite: "Lax"

@@ -1,5 +1,10 @@
 package com.ch.memberservice.member.jwt;
 
+import com.ch.memberservice.member.exception.JwtAuthenticationException;
+import com.ch.memberservice.member.redis.RedisTokenStore;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +29,16 @@ import java.io.IOException;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final RedisTokenStore redisTokenStore;
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        return "OPTIONS".equalsIgnoreCase(request.getMethod())
+                || uri.startsWith("/api/auth/login")
+                || uri.startsWith("/api/auth/logout")
+                || uri.startsWith("/api/auth/refresh"); // 있다면
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -31,6 +46,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         // 클라이언트의 헤더 추출
         String header = request.getHeader("Authorization");
 
+        /*ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+         1) 토큰이 존재하는가?
+        ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ*/
         // 헤더에 Authorization 이 없으면 SecurityContext 에 로그인 인증회원이라는 기록을 저장하지 않으며
         // 아무것도 처리하지 않음
         if(header == null || !header.startsWith("Bearer ")) {   // 헤더가 없거나, Bearer 로 시작하지 않으면 Token이 유효하지 않다는 것.
@@ -38,19 +56,47 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 토큰이 유효한 사용자의 경우
-        String token = header.substring(7).trim();  // "Bearer " bearer 와 띄어쓰기 이후에 오는 7번째부터 시작하는 해시값 + 빈칸제거해서 깨끗한 hash 값을 추출.
+        String token = header.substring(7).trim();
 
-        if(jwtTokenProvider.validateAccessToken(token)){
-            // 스프링 시큐리리에게 이 요청은 유효한(로그인 인증을 받은) 것이라는 걸 알려줘야 함
-            if(SecurityContextHolder.getContext().getAuthentication()==null) {  // ContextHolder 에 기존 인증이 null 이면(없다면)
-                // jwtProvider 안에 jwt token 을 이용하여 Authentication Token 을 얻어오는 메서드가 준비되어 있음
-                Authentication authentication = jwtTokenProvider.getAuthentication(token);
-                SecurityContextHolder.getContext().setAuthentication(authentication);   // 이 등록을 하는 순간 스프링은 인증회원이라는 것을 인지함. 더 이상 막지 않음
-                log.debug("필터 단계에서 JWT 검증 성공");
+        /*ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+         2) 토큰이 유효한가?
+        ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ*/
+        try {
+            // 토큰 분해 및 검증
+            Claims claims = jwtTokenProvider.getClaims(token);
+
+            String tokenType = claims.get("tokenType", String.class);
+            if(! "access".equals(tokenType)) {
+                throw new JwtAuthenticationException("Access Token 아님.");
             }
-        }
-        filterChain.doFilter(request, response);
 
+            /*ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+             3) 블랙리스트에 등록되어 있는가?
+            ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ*/
+            String accessJti = claims.getId();
+
+             if (accessJti !=null && redisTokenStore.isAccessTokenBlacklisted(accessJti)) { // null 이 아니고, 블랙리스트에 등록되어있지 않다면
+                 // 이 에러 정보를 클라이언트도 알아야 하므로, 추후 에러 응답처리 할 예정
+                 throw new JwtAuthenticationException("사용할 수 없는 토큰(블랙리스트)");
+             }
+
+             // 유효한 토큰을 가진 사람이므로, 서버의 api 를 접근할 수 있도록 스프링 시큐리리에게 인증이 성공된 회원이라고 알려주자.
+            if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                Authentication authentication = jwtTokenProvider.getAuthentication(token);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
+
+            filterChain.doFilter(request, response);    // 이제, 원래 요청했던 api 로 접근하게 해줌
+
+        } catch (ExpiredJwtException e) {
+            // 기간 만료된 토큰
+            throw new JwtAuthenticationException("만료된 토큰입니다.");
+        } catch (JwtException | IllegalArgumentException e) {
+            // 위/변조, 형식 오류, 서명 불일치 등
+            // 클라이언트에 적절한 메세지 출력
+            throw new JwtAuthenticationException("유효하지 않은 인증 정보입니다.");
+        }
     }
+
+
 }

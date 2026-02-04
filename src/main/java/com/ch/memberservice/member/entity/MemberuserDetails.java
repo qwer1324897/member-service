@@ -1,5 +1,6 @@
 package com.ch.memberservice.member.entity;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -9,6 +10,7 @@ import java.util.Collection;
 import java.util.List;
 
 @RequiredArgsConstructor
+@Getter
 public class MemberuserDetails implements UserDetails {
 
     // 아래에 선언된 Member entity 의 정보를 UserDetails 로 옮기자. << 이게 목표.(스프링이 원하기 때문에, 스프링이 이해하는 엔터티로 변환)

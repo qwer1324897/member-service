@@ -9,5 +9,6 @@ import lombok.Setter;
 @AllArgsConstructor
 public class LoginResponse {
 
+    private String tokenType;
     private String accessToken;
 }
