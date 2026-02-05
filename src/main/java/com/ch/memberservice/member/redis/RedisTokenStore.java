@@ -9,6 +9,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -117,6 +118,24 @@ public class RedisTokenStore {
         Boolean exist = redisTemplate.hasKey("bl:at:" + accessJti);
 
         return (exist!=null) && exist;
+    }
+
+    /*ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+     임시코드 저장 (저장 값으로 Access Token 이용, 보안을 위해 1분간 유지)
+    ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ*/
+    public void saveTempCode(String tempCode, String accessToken, long ttl) {
+        redisTemplate.opsForValue().set("oauth2:code:" + tempCode, accessToken, Duration.ofSeconds(ttl));
+    }
+
+    /*ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+     임시코드를 이용한 Access Token 반환
+    ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ*/
+    public Optional<String> exchangeCodeForToken(String tempCode) {
+        String accessToken = redisTemplate.opsForValue().get("oauth2:code:" + tempCode);
+
+        if(accessToken==null) return Optional.empty();  // 토큰 유효성 검사
+        redisTemplate.delete("oauth2:code:" + tempCode);    // 토큰 반환 시 즉시 삭제
+        return Optional.of(accessToken);
     }
 
 }

@@ -58,7 +58,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .id(jti)
-                .subject(authentication.getName())  // 컨트롤러에서 담은 homepageId 가 들어가있음
+                .subject(authentication.getName())  // 컨트롤러에서 담은 memberId 가 들어가있음
                 .claim("roles", roles)
                 .claim("tokenType", "access")   // api 서버 접근 용 토큰(15분으로 설정해놓음)
                 .issuedAt(Date.from(now))   // 토큰이 발급된 시간

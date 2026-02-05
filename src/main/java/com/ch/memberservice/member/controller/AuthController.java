@@ -157,6 +157,18 @@ public class AuthController {
         return Map.of("name", memberuserDetails.getUsername());
     }
 
+    /*ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+     react 프론트에서 코드가 전송되면, 이 코드를 이용하여 redis 에서 Access Token 찾아 반환
+    ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ*/
+    @PostMapping("/oauth2/exchange")
+    public ResponseEntity<?> exchange(@RequestParam String tempCode) {
+
+        String accessToken = redisTokenStore.exchangeCodeForToken(tempCode).orElseThrow(()-> new IllegalArgumentException("Invalied temp code"));
+
+        return ResponseEntity.ok(Map.of("tokenType", "Bearer ", "accessToken", accessToken));
+    }
+
+
     @ExceptionHandler(AuthenticationException.class)    // 원래는 따로 만들어야되는데 지금은 일단 컨트롤러에다가;;
     public String handle(AuthenticationException e) {
         log.debug("\n\n인증 실패 ㅜㅜ");
